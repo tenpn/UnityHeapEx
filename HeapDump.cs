@@ -144,6 +144,8 @@ namespace UnityHeapEx
                 objectElement.SetAttribute("totalsize", scriptSize.ToString());
             }
 
+            SortElementsBySize(doc.DocumentElement);
+
             string filename = "heapdump-" + DateTime.Now.ToString("s") + ".xml";
 
             using(var writer = new XmlTextWriter(filename, null))
@@ -413,6 +415,49 @@ namespace UnityHeapEx
                 rank--;
             }
             return l;
+        }
+
+        // finds totalsize/size attribute on child elements, places them in order.
+        // operates recursively on all children
+        private void SortElementsBySize(XmlElement element)
+        {
+            var childrenToSort = new List<Pair<int,XmlElement>>();
+            foreach(var child in element)
+            {
+                var childElement = child as XmlElement;
+                if (childElement == null)
+                {
+                    continue;
+                }
+
+                SortElementsBySize(childElement);
+
+                string sizeString = childElement.GetAttribute("totalsize");
+                if (sizeString == "")
+                {
+                    sizeString = childElement.GetAttribute("size");
+                }
+
+                if (sizeString == "")
+                {
+                    continue;
+                }
+
+                int sizeValue = int.Parse(sizeString);
+                childrenToSort.Add(new Pair<int, XmlElement>(sizeValue, childElement));
+            }
+
+            // remove all found children from parent
+            foreach(var sizeChild in childrenToSort)
+            {
+                element.RemoveChild(sizeChild.Second);
+            }
+
+            var sortedChildren = childrenToSort.OrderBy(c => c.First).Reverse().Select(c => c.Second);
+            foreach(var sortedChild in sortedChildren)
+            {
+                element.AppendChild(sortedChild);
+            }
         }
     }
 }
