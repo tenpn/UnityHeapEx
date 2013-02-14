@@ -49,7 +49,8 @@ namespace UnityHeapEx
             var allScripts = UnityEngine.Object.FindObjectsOfType( typeof( MonoBehaviour ) );
 
             seenObjects.Clear(); // used to prevent going through same object twice
-            using( writer = new StreamWriter( "heapdump.xml" ) )
+            string filename = "heapdump-" + DateTime.Now.ToString("s") + ".xml";
+            using( writer = new StreamWriter(filename) )
             {
                 writer.WriteLine( "<?xml version=\"1.0\" encoding=\"utf-8\"?>" );
                 int totalSize = 0;
@@ -127,7 +128,7 @@ namespace UnityHeapEx
                 writer.WriteLine( "</scripts>" );
                 //                writer.WriteLine( "Total size: " + totalSize );
             }
-            Debug.Log( "OK" );
+            Debug.Log( "Written heap dump to file \"" + Path.GetFullPath(filename) + "\"");
         }
 		
 		/// <summary>
