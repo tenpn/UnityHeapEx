@@ -171,7 +171,8 @@ namespace UnityHeapEx
 
             SortElementsBySize(doc.DocumentElement);
 
-            string filename = "heapdump-" + DateTime.Now.ToString("s") + ".xml";
+            string filename = "heapdump-" + Path.GetFileNameWithoutExtension(EditorApplication.currentScene) + "-" 
+                + DateTime.Now.ToString("s") + ".xml"; 
 
             using(var writer = new XmlTextWriter(filename, null))
             {
