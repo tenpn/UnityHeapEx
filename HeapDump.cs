@@ -21,7 +21,23 @@ namespace UnityHeapEx
             h.DumpToXml();
         }
 
-        private readonly HashSet<object> seenObjects = new HashSet<object>();
+        private struct CachedObject
+        {
+            public CachedObject(Type type, XmlElement element, int size) : this()
+            {
+                Type = type;
+                Element = element;
+                Size = size;
+            }
+
+            public bool IsValid { get { return Type != null; } }
+
+            public Type Type;
+            public XmlElement Element;
+            public int Size;
+        }
+
+        private Dictionary<System.Object, CachedObject> seenObjects = new Dictionary<System.Object, CachedObject>();
         private XmlDocument doc = null;
 
         // when true, types w/o any static field (and skipped types) are removed from output
@@ -47,7 +63,7 @@ namespace UnityHeapEx
             var gameAssembly = assemblies.Single( a => a.FullName.Contains( "Assembly-CSharp," ) );
             var allTypes = gameAssembly.GetTypes();
 
-            var allScripts = UnityEngine.Object.FindObjectsOfType( typeof( MonoBehaviour ) );
+            var allGameObjects = UnityEngine.Object.FindObjectsOfType( typeof( GameObject ) );
 
             seenObjects.Clear(); // used to prevent going through same object twice
 
@@ -80,7 +96,7 @@ namespace UnityHeapEx
                 }
 
 
-                var typeElement = doc.CreateElement("type");
+                var typeElement = doc.CreateElement("statictype");
                 staticsElement.AppendChild(typeElement);
 
                 typeElement.SetAttribute("name", SecurityElement.Escape( type.GetFormattedName() ));
@@ -113,35 +129,44 @@ namespace UnityHeapEx
 				
             // enumerate all MonoBehaviours - that is, all user scripts on all existing objects.
             // TODO this maybe misses objects with active==false.
-            var scriptsElement = doc.CreateElement("scripts");
-            doc.DocumentElement.AppendChild(scriptsElement);
+            var rootObjectsElement = doc.CreateElement("rootobjects");
+            doc.DocumentElement.AppendChild(rootObjectsElement);
 
-            foreach( MonoBehaviour mb in allScripts )
+            foreach( GameObject go in allGameObjects)
             {
-                var objectElement = doc.CreateElement("object");
-                scriptsElement.AppendChild(objectElement);
-
-                objectElement.SetAttribute("type", SecurityElement.Escape( mb.GetType().GetFormattedName() ));
-                objectElement.SetAttribute("name", SecurityElement.Escape( mb.name ));
-
-                var type = mb.GetType();
-                int scriptSize = 0;
-                foreach( var fieldInfo in type.EnumerateAllFields() )
+                if (go.transform.parent != null)
                 {
-                    try
+                    // only report root objects
+                    continue;
+                }
+
+                var rootObjectElement = doc.CreateElement("rootobject");
+                rootObjectsElement.AppendChild(rootObjectElement);
+                rootObjectElement.SetAttribute("name", go.name);
+
+                int goSize = 0;
+                foreach(var component in go.GetComponents<Component>())
+                {
+                    if (component is Transform)
                     {
-                        int size = ReportField( mb, fieldInfo, objectElement);
-                        totalSize += size;
-                        scriptSize += size;
+                        // everything has a transform, not very informative
+                        continue;
                     }
-                    catch( Exception ex )
+
+                    if (seenObjects.ContainsKey(component))
                     {
-                        Debug.LogError( "Exception: " + ex.Message + " on " + fieldInfo.FieldType.GetFormattedName() + " " +
-                                        fieldInfo.Name );
+                        var seenObj = seenObjects[component];
+                        rootObjectElement.AppendChild(CreateSeenElement(seenObj));
+                        goSize += seenObj.Size;
+                    }
+                    else
+                    {
+                        goSize += ReportClassInstance(component, rootObjectElement);
                     }
                 }
-                
-                objectElement.SetAttribute("totalsize", scriptSize.ToString());
+
+                rootObjectElement.SetAttribute("totalsize", goSize.ToString());
+                seenObjects[go] = new CachedObject(go.GetType(), rootObjectElement, goSize);
             }
 
             SortElementsBySize(doc.DocumentElement);
@@ -157,52 +182,6 @@ namespace UnityHeapEx
             Debug.Log( "Written heap dump to file \"" + Path.GetFullPath(filename) + "\"");
         }
 		
-		/// <summary>
-		/// Works through all fields of an object, dumpoing them into xml
-		/// </summary>
-        public int GatherFromRootRecursively(object root, XmlElement parent)
-        {
-            var seen = seenObjects.Contains( root );
-
-            XmlElement rootElement = null;
-            if( root is Object )
-            {
-                var uo = root as Object;
-                rootElement = WriteUnityObjectData( uo, seen );
-            }
-            else
-            {
-                rootElement = doc.CreateElement("nonobject");
-            }
-
-            parent.AppendChild(rootElement);
-
-            if( seen )
-            {
-                if(!(root is Object))
-                {
-					// XXX maybe add some object index so that this is traceable to original object dump
-					// earlier in xml?
-                    parent.AppendChild(doc.CreateElement("seen"));
-                    
-                }
-                return 0;
-            }
-
-            seenObjects.Add( root );
-
-            var type = root.GetType();
-            var fields = type.EnumerateAllFields();
-            var res = 0;
-            foreach( var fieldInfo in fields )
-            {
-                res += ReportField( root, fieldInfo, rootElement);
-            }
-
-            rootElement.SetAttribute("totalsize", res.ToString());
-            return res;
-        }
-
         private XmlElement WriteUnityObjectData( Object uo, bool seen )
         {
 			// shows some additional info on UnityObjects
@@ -214,122 +193,54 @@ namespace UnityHeapEx
             // todo we can show referenced assets for renderers, materials, audiosources etc
             return unityObjectElement;
         }
-		
-		/// <summary>
-		/// Dumps info on the field in xml. Provides some rough estimate on size taken by its contents,
-		/// and recursively enumerates fields if this one contains an object reference.
-		/// </summary>
-		/// <returns>
-		/// Rough estimate of memory taken by field and its contents
-		/// </returns>
-        private int ReportField(object root, FieldInfo fieldInfo, XmlElement parent)
+
+        private XmlElement CreateNullElement()
         {
-            var v = fieldInfo.GetValue( root );
+            return doc.CreateElement("null");
+        }
+
+        private XmlElement CreateSeenElement(CachedObject seenObj)
+        {
+            if (seenObj.IsValid == false)
+            {
+                throw new UnityException("seen obj was null");
+            }
+
+            var seenElement = doc.CreateElement("seenobject");
+            seenElement.SetAttribute("size", seenObj.Size.ToString());
+            seenElement.SetAttribute("type", seenObj.Type.ToString());
+
+            return seenElement;
+        }
+
+        private int ReportValue(System.Object obj, XmlElement parent)
+        {
+            if (obj == null)
+            {
+                parent.AppendChild(CreateNullElement());
+                return IntPtr.Size;
+            }
+
+            var ftype = obj.GetType();
+            
+            XmlElement valueElement = null;
             int res = 0;
-            var ftype = v==null?null:v.GetType();
 
-            var elementOut = doc.CreateElement("field");
-            elementOut.SetAttribute("type", SecurityElement.Escape( fieldInfo.FieldType.GetFormattedName() ));
-            elementOut.SetAttribute("name", SecurityElement.Escape( fieldInfo.Name ));
-            elementOut.SetAttribute("runtimetype", SecurityElement.Escape( v==null?"-null-":ftype.GetFormattedName()));
-            parent.AppendChild(elementOut);
-
-            if(v==null)
-            {
-                res += IntPtr.Size;
-            }
-            else if( ftype.IsArray )
-            {
-				// arrays have special treatment b/c we have to work on every array element
-				// just like a single value.
-				// TODO refactor this so that arry item and non-array field value share code
-                var val = v as Array;
-                res += IntPtr.Size; // reference size
-                if( val != null && !seenObjects.Contains( val ))
-                {
-                    seenObjects.Add( val );
-                    var length = GetTotalLength( val );
-
-                    var arrayElement = doc.CreateElement("array");
-                    arrayElement.SetAttribute("length", length.ToString());
-                    elementOut.AppendChild(arrayElement);
-
-                    var eltype = ftype.GetElementType();
-                    if( eltype.IsValueType )
-                    {
-                        if( eltype.IsEnum )
-                            eltype = Enum.GetUnderlyingType( eltype );
-                        try
-                        {
-                            res += Marshal.SizeOf( eltype ) * length;
-                        }
-                        catch( Exception )
-                        {
-                            Debug.LogError("error msg=\"Marshal.SizeOf() failed\"");
-                        }
-                    }
-                    else if( eltype == typeof( string ) )
-                    {
-                        // special case
-                        res += IntPtr.Size * length; // array itself
-
-                        foreach( string item in val )
-                        {
-                            if( item != null )
-                            {
-                                var stringElement = doc.CreateElement("string");
-                                stringElement.SetAttribute("length", item.Length.ToString());
-                                arrayElement.AppendChild(stringElement);
-
-                                if(!seenObjects.Contains( val ))
-                                {
-                                    seenObjects.Add( val );
-                                    res += sizeof( char ) * item.Length + sizeof( int );
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        res += IntPtr.Size * length; // array itself
-                        foreach( var item in val )
-                        {
-                            if( item != null )
-                            {
-                                var itemElement = doc.CreateElement("item");
-                                arrayElement.AppendChild(itemElement);
-                                itemElement.SetAttribute("type", SecurityElement.Escape( item.GetType().GetFormattedName() ));
-                                
-                                res += GatherFromRootRecursively( item, itemElement);
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    var nullElement = doc.CreateElement("null");
-                    elementOut.AppendChild(nullElement);
-                }
-            }
-            else if( ftype.IsValueType )
+            if( ftype.IsValueType )
             {
                 if( ftype.IsPrimitive )
                 {
-                    var val = fieldInfo.GetValue( root );
                     res += Marshal.SizeOf( ftype );
 
-                    var valueElement = doc.CreateElement("value");
-                    elementOut.AppendChild(valueElement);
-                    valueElement.SetAttribute("value", val.ToString());
+                    valueElement = doc.CreateElement("value");
+                    valueElement.SetAttribute("value", obj.ToString());
                 }
                 else if( ftype.IsEnum )
                 {
-                    var val = fieldInfo.GetValue( root );
                     res += Marshal.SizeOf( Enum.GetUnderlyingType( ftype ) );
 
-                    var valueElement = doc.CreateElement("value");
-                    elementOut.AppendChild(valueElement);
-                    valueElement.SetAttribute("value", val.ToString());
+                    valueElement = doc.CreateElement("enum");
+                    valueElement.SetAttribute("value", obj.ToString());
                 }
                 else
                 {
@@ -344,12 +255,8 @@ namespace UnityHeapEx
                     catch( Exception )
                     {
                         // this breaks if struct has a reference member. We should probably never have such structs, but we'll see...
-                        Debug.LogError("  <error msg=\"Marshal.SizeOf() failed\"/>" );
+                        Debug.LogError("error Marshal.SizeOf() of type " + ftype + " failed" );
                     }
-                    
-                    var structElement = doc.CreateElement("struct");
-                    elementOut.AppendChild(structElement);
-                    structElement.SetAttribute("size", s.ToString());
 
                     res += s;
                 }
@@ -358,46 +265,132 @@ namespace UnityHeapEx
             {
                 // special case
                 res += IntPtr.Size; // reference size
-                var val = fieldInfo.GetValue( root ) as string;
-                if( val != null )
-                {
-                    var stringElement = doc.CreateElement("string");
-                    elementOut.AppendChild(stringElement);
-                    elementOut.SetAttribute("length", val.Length.ToString());
+                var val = obj as string;
 
-                    if(!seenObjects.Contains( val ))
+                valueElement = doc.CreateElement("string");
+                valueElement.SetAttribute("length", val.Length.ToString());
+
+                res += sizeof( char ) * val.Length + sizeof( int );
+            }
+            else if (seenObjects.ContainsKey(obj))
+            {
+                var seenObj = seenObjects[obj];
+                parent.AppendChild(CreateSeenElement(seenObj));
+                return seenObj.Size;
+            }
+            else if( ftype.IsArray )
+            {
+				// arrays have special treatment b/c we have to work on every array element
+				// just like a single value.
+                var val = obj as Array;
+                res += IntPtr.Size; // reference size
+
+                var length = GetTotalLength( val );
+
+                var arrayElement = doc.CreateElement("array");
+                arrayElement.SetAttribute("length", length.ToString());
+                parent.AppendChild(arrayElement);
+
+                var eltype = ftype.GetElementType();
+                if( eltype.IsValueType )
+                {
+                    if( eltype.IsEnum )
+                        eltype = Enum.GetUnderlyingType( eltype );
+                    try
                     {
-                        seenObjects.Add( val );
-                        res += sizeof( char ) * val.Length + sizeof( int );
+                        res += Marshal.SizeOf( eltype ) * length;
+                    }
+                    catch( Exception )
+                    {
+                        Debug.LogError("error msg=\"Marshal.SizeOf() failed for type " + eltype + "\"");
                     }
                 }
                 else
                 {
-                    var nullElement = doc.CreateElement("null");
-                    elementOut.AppendChild(nullElement);
+                    foreach(var arrObj in val)
+                    {
+                        res += ReportValue(arrObj, arrayElement);
+                    }
                 }
+
+                valueElement = arrayElement;
             }
             else
             {
                 // this is a reference 
-                var classVal = fieldInfo.GetValue( root );
                 res += IntPtr.Size; // reference size
-                if( classVal != null )
+
+                res += ReportClassInstance(obj, parent);
+            }
+
+            if (valueElement != null)
+            {
+                parent.AppendChild(valueElement);
+
+                seenObjects[obj] = new CachedObject(ftype, valueElement, res);
+            }
+
+            return res;
+        }
+
+        private int ReportClassInstance(object instance, XmlElement parent)
+        {
+            if (seenObjects.ContainsKey(instance))
+            {
+                throw new UnityException("instance " + instance + " already in seen objects cache");
+            }
+
+            var type = instance.GetType();
+
+            var instanceElement = doc.CreateElement("instance");
+            parent.AppendChild(instanceElement);
+            instanceElement.SetAttribute("type", SecurityElement.Escape( type.GetFormattedName() ));
+
+            // reserve as seen so we don't get into a loop
+            seenObjects[instance] = new CachedObject(type, instanceElement, -1);           
+            
+            int instanceSize = 0;
+            foreach( var fieldInfo in type.EnumerateAllFields() )
+            {
+                try
                 {
-                    res += GatherFromRootRecursively( classVal, elementOut);
+                    int size = ReportField( instance, fieldInfo, instanceElement);
+                    instanceSize += size;
                 }
-                else
+                catch( Exception ex )
                 {
-                    var nullElement = doc.CreateElement("null");
-                    elementOut.AppendChild(nullElement);
+                    Debug.LogError( "Exception: " + ex.Message + " on " + fieldInfo.FieldType.GetFormattedName() + " " +
+                                    fieldInfo.Name );
                 }
             }
 
-            var totalSizeElement = doc.CreateElement("total");
-            totalSizeElement.SetAttribute("size", res.ToString());
-            elementOut.AppendChild(totalSizeElement);
+            instanceElement.SetAttribute("totalsize", instanceSize.ToString());
+            
+            // now store correct size
+            seenObjects[instance] = new CachedObject(type, instanceElement, instanceSize);
 
-            elementOut.SetAttribute("totalsize", res.ToString());
+            return instanceSize;
+        }
+		
+		/// <summary>
+		/// Dumps info on the field in xml. Provides some rough estimate on size taken by its contents,
+		/// and recursively enumerates fields if this one contains an object reference.
+		/// </summary>
+		/// <returns>
+		/// Rough estimate of memory taken by field and its contents
+		/// </returns>
+        private int ReportField(object root, FieldInfo fieldInfo, XmlElement parent)
+        {
+            var fieldElement = doc.CreateElement("field");
+            fieldElement.SetAttribute("type", SecurityElement.Escape( fieldInfo.FieldType.GetFormattedName() ));
+            fieldElement.SetAttribute("name", SecurityElement.Escape( fieldInfo.Name ));
+
+            parent.AppendChild(fieldElement);
+
+            var v = fieldInfo.GetValue( root );
+            int res = ReportValue(v, fieldElement);
+            
+            fieldElement.SetAttribute("totalsize", res.ToString());
 
             return res;
         }
