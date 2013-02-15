@@ -155,7 +155,8 @@ namespace UnityHeapEx
                     continue;
                 }
 
-                ReportClassInstance(nextInstance, instancesElement);
+                // now we produce instance data, so don't queue
+                ReportValue(nextInstance, instancesElement, ReferenceQueueing.DoNotQueueReferenceTypes);
             }
 
             SortElementsBySize(doc.DocumentElement);
@@ -180,7 +181,6 @@ namespace UnityHeapEx
             }
 
             var rootObjectElement = doc.CreateElement("gameobject");
-            parent.AppendChild(rootObjectElement);
             rootObjectElement.SetAttribute("name", go.name);
             // cache now so we don't get into a loop
             seenObjects[go] = new CachedObject(go.GetType(), rootObjectElement, -1);
@@ -229,6 +229,11 @@ namespace UnityHeapEx
             seenObjects[go] = new CachedObject(go.GetType(), rootObjectElement, goSize);
 
             rootObjectElement.SetAttribute("totalsize", goSize.ToString());
+
+            if (SkipEmptyTypes == false || goSize > 0)
+            {
+                parent.AppendChild(rootObjectElement);
+            }
             return goSize;
         }
 		
@@ -263,7 +268,14 @@ namespace UnityHeapEx
             return seenElement;
         }
 
-        private int ReportValue(System.Object obj, XmlElement parent)
+        [Flags]
+        enum ReferenceQueueing
+        {
+            QueueReferenceTypes,
+            DoNotQueueReferenceTypes,
+        }
+
+        private int ReportValue(System.Object obj, XmlElement parent, ReferenceQueueing queueingBehaviour)
         {
             if (obj == null)
             {
@@ -281,16 +293,10 @@ namespace UnityHeapEx
                 if( ftype.IsPrimitive )
                 {
                     res += Marshal.SizeOf( ftype );
-
-                    valueElement = doc.CreateElement("value");
-                    valueElement.SetAttribute("value", obj.ToString());
                 }
                 else if( ftype.IsEnum )
                 {
                     res += Marshal.SizeOf( Enum.GetUnderlyingType( ftype ) );
-
-                    valueElement = doc.CreateElement("enum");
-                    valueElement.SetAttribute("value", obj.ToString());
                 }
                 else
                 {
@@ -315,12 +321,16 @@ namespace UnityHeapEx
             {
                 // special case
                 res += IntPtr.Size; // reference size
-                var val = obj as string;
 
-                valueElement = doc.CreateElement("string");
-                valueElement.SetAttribute("length", val.Length.ToString());
-
-                res += sizeof( char ) * val.Length + sizeof( int );
+                if (queueingBehaviour == ReferenceQueueing.QueueReferenceTypes)
+                {
+                    instancesToProcess.Enqueue(obj);
+                }
+                else
+                {
+                    var val = obj as string;
+                    ReportString(val, parent);
+                }
             }
             else if (seenObjects.ContainsKey(obj))
             {
@@ -357,9 +367,13 @@ namespace UnityHeapEx
                 }
                 else
                 {
+                    res = IntPtr.Size * length;
                     foreach(var arrObj in val)
                     {
-                        res += ReportValue(arrObj, arrayElement);
+                        if (arrObj != null)
+                        {
+                            instancesToProcess.Enqueue(arrObj);
+                        }
                     }
                 }
 
@@ -369,8 +383,15 @@ namespace UnityHeapEx
             {
                 // this is a reference 
                 res += IntPtr.Size; // reference size
-                instancesToProcess.Enqueue(obj);
-                valueElement = CreateReferenceElement();
+                if (queueingBehaviour == ReferenceQueueing.QueueReferenceTypes)
+                {
+                    instancesToProcess.Enqueue(obj);
+                    valueElement = CreateReferenceElement();
+                }
+                else
+                {
+                    ReportClassInstance(obj, parent);
+                }
             }
 
             if (valueElement != null)
@@ -381,6 +402,18 @@ namespace UnityHeapEx
             }
 
             return res;
+        }
+
+        private int ReportString(string s, XmlElement parent)
+        {
+            var stringElement = doc.CreateElement("string");
+            stringElement.SetAttribute("length", s.Length.ToString());
+
+            int size = sizeof( char ) * s.Length + sizeof( int );            
+
+            stringElement.SetAttribute("size", size.ToString());
+            parent.AppendChild(stringElement);
+            return size;
         }
 
         private XmlElement CreateReferenceElement()
@@ -443,7 +476,7 @@ namespace UnityHeapEx
             parent.AppendChild(fieldElement);
 
             var v = fieldInfo.GetValue( root );
-            int res = ReportValue(v, fieldElement);
+            int res = ReportValue(v, fieldElement, ReferenceQueueing.QueueReferenceTypes);
             
             fieldElement.SetAttribute("totalsize", res.ToString());
 
