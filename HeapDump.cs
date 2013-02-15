@@ -127,11 +127,14 @@ namespace UnityHeapEx
                     typeElement.SetAttribute("totalsize", typeSize.ToString());
                 }
             }
+            staticsElement.SetAttribute("totalsize", totalSize.ToString());
 				
             // enumerate all MonoBehaviours - that is, all user scripts on all existing objects.
             // TODO this maybe misses objects with active==false.
             var rootObjectsElement = doc.CreateElement("rootobjects");
             doc.DocumentElement.AppendChild(rootObjectsElement);
+
+            int totalGOSize = 0;
 
             foreach( GameObject go in allGameObjects)
             {
@@ -140,11 +143,15 @@ namespace UnityHeapEx
                     continue;
                 }
 
-                ReportGameObject(go, rootObjectsElement);
+                totalGOSize += ReportGameObject(go, rootObjectsElement);
             }
+
+            rootObjectsElement.SetAttribute("totalsize", totalGOSize.ToString());
+            totalSize += totalGOSize;
 
             var instancesElement = doc.CreateElement("instances");
             doc.DocumentElement.AppendChild(instancesElement);
+            int instancesSize = 0;
 
             while(instancesToProcess.Count > 0)
             {
@@ -156,8 +163,13 @@ namespace UnityHeapEx
                 }
 
                 // now we produce instance data, so don't queue
-                ReportValue(nextInstance, instancesElement, ReferenceQueueing.DoNotQueueReferenceTypes);
+                instancesSize += ReportValue(nextInstance, instancesElement, ReferenceQueueing.DoNotQueueReferenceTypes);
             }
+            totalSize += instancesSize;
+
+            instancesElement.SetAttribute("totalsize", instancesSize.ToString());
+            
+            doc.DocumentElement.SetAttribute("totalsize", totalSize.ToString());
 
             SortElementsBySize(doc.DocumentElement);
 
