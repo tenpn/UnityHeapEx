@@ -38,6 +38,7 @@ namespace UnityHeapEx
         }
 
         private Dictionary<System.Object, CachedObject> seenObjects = new Dictionary<System.Object, CachedObject>();
+        private Queue<System.Object> instancesToProcess = new Queue<System.Object>();
         private XmlDocument doc = null;
 
         // when true, types w/o any static field (and skipped types) are removed from output
@@ -136,37 +137,25 @@ namespace UnityHeapEx
             {
                 if (go.transform.parent != null)
                 {
-                    // only report root objects
                     continue;
                 }
 
-                var rootObjectElement = doc.CreateElement("rootobject");
-                rootObjectsElement.AppendChild(rootObjectElement);
-                rootObjectElement.SetAttribute("name", go.name);
+                ReportGameObject(go, rootObjectsElement);
+            }
 
-                int goSize = 0;
-                foreach(var component in go.GetComponents<Component>())
+            var instancesElement = doc.CreateElement("instances");
+            doc.DocumentElement.AppendChild(instancesElement);
+
+            while(instancesToProcess.Count > 0)
+            {
+                var nextInstance = instancesToProcess.Dequeue();
+                if (seenObjects.ContainsKey(nextInstance))
                 {
-                    if (component is Transform)
-                    {
-                        // everything has a transform, not very informative
-                        continue;
-                    }
-
-                    if (seenObjects.ContainsKey(component))
-                    {
-                        var seenObj = seenObjects[component];
-                        rootObjectElement.AppendChild(CreateSeenElement(seenObj));
-                        goSize += seenObj.Size;
-                    }
-                    else
-                    {
-                        goSize += ReportClassInstance(component, rootObjectElement);
-                    }
+                    // been done
+                    continue;
                 }
 
-                rootObjectElement.SetAttribute("totalsize", goSize.ToString());
-                seenObjects[go] = new CachedObject(go.GetType(), rootObjectElement, goSize);
+                ReportClassInstance(nextInstance, instancesElement);
             }
 
             SortElementsBySize(doc.DocumentElement);
@@ -181,6 +170,66 @@ namespace UnityHeapEx
             }
 
             Debug.Log( "Written heap dump to file \"" + Path.GetFullPath(filename) + "\"");
+        }
+
+        private int ReportGameObject(GameObject go, XmlElement parent)
+        {
+            if (seenObjects.ContainsKey(go))
+            {
+                throw new UnityException("gameobj " + go.name + " has already been seen");
+            }
+
+            var rootObjectElement = doc.CreateElement("gameobject");
+            parent.AppendChild(rootObjectElement);
+            rootObjectElement.SetAttribute("name", go.name);
+            // cache now so we don't get into a loop
+            seenObjects[go] = new CachedObject(go.GetType(), rootObjectElement, -1);
+
+            int goSize = 0;
+
+            // report children
+            {
+                int childrenSize = 0;
+                var childrenElement = doc.CreateElement("childobjects");
+                rootObjectElement.AppendChild(childrenElement);
+
+                // don't process transform directly, but do process child objects
+                foreach(Transform childTransform in go.transform)
+                {
+                    int childSize = ReportGameObject(childTransform.gameObject, childrenElement);
+                    childrenSize += childSize;
+                }
+
+                childrenElement.SetAttribute("totalsize", childrenSize.ToString());
+
+                goSize += childrenSize;
+            }
+
+
+            foreach(var component in go.GetComponents<Component>())
+            {
+                if (component is Transform)
+                {
+                    continue;
+                }
+
+                if (seenObjects.ContainsKey(component))
+                {
+                    var seenObj = seenObjects[component];
+                    rootObjectElement.AppendChild(CreateSeenElement(seenObj));
+                    goSize += seenObj.Size;
+                }
+                else
+                {
+                    goSize += ReportClassInstance(component, rootObjectElement);
+                }
+            }
+
+            // correctly report size
+            seenObjects[go] = new CachedObject(go.GetType(), rootObjectElement, goSize);
+
+            rootObjectElement.SetAttribute("totalsize", goSize.ToString());
+            return goSize;
         }
 		
         private XmlElement WriteUnityObjectData( Object uo, bool seen )
@@ -320,8 +369,8 @@ namespace UnityHeapEx
             {
                 // this is a reference 
                 res += IntPtr.Size; // reference size
-
-                res += ReportClassInstance(obj, parent);
+                instancesToProcess.Enqueue(obj);
+                valueElement = CreateReferenceElement();
             }
 
             if (valueElement != null)
@@ -332,6 +381,11 @@ namespace UnityHeapEx
             }
 
             return res;
+        }
+
+        private XmlElement CreateReferenceElement()
+        {
+            return doc.CreateElement("reference");
         }
 
         private int ReportClassInstance(object instance, XmlElement parent)
