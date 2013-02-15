@@ -386,6 +386,8 @@ namespace UnityHeapEx
                     }
                 }
 
+                arrayElement.SetAttribute("size", res.ToString());
+
                 valueElement = arrayElement;
             }
             else
