@@ -205,7 +205,7 @@ namespace UnityHeapEx
                 goSize += childrenSize;
             }
 
-
+            // do components
             foreach(var component in go.GetComponents<Component>())
             {
                 if (component is Transform)
