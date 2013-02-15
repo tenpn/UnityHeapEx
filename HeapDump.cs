@@ -280,7 +280,7 @@ namespace UnityHeapEx
             if (obj == null)
             {
                 parent.AppendChild(CreateNullElement());
-                return IntPtr.Size;
+                return 0;
             }
 
             var ftype = obj.GetType();
@@ -320,8 +320,6 @@ namespace UnityHeapEx
             else if( ftype == typeof( string ) )
             {
                 // special case
-                res += IntPtr.Size; // reference size
-
                 if (queueingBehaviour == ReferenceQueueing.QueueReferenceTypes)
                 {
                     instancesToProcess.Enqueue(obj);
@@ -343,7 +341,6 @@ namespace UnityHeapEx
 				// arrays have special treatment b/c we have to work on every array element
 				// just like a single value.
                 var val = obj as Array;
-                res += IntPtr.Size; // reference size
 
                 var length = GetTotalLength( val );
 
@@ -382,7 +379,6 @@ namespace UnityHeapEx
             else
             {
                 // this is a reference 
-                res += IntPtr.Size; // reference size
                 if (queueingBehaviour == ReferenceQueueing.QueueReferenceTypes)
                 {
                     instancesToProcess.Enqueue(obj);
@@ -476,7 +472,10 @@ namespace UnityHeapEx
             parent.AppendChild(fieldElement);
 
             var v = fieldInfo.GetValue( root );
-            int res = ReportValue(v, fieldElement, ReferenceQueueing.QueueReferenceTypes);
+
+            int fieldSize = fieldInfo.FieldType.IsValueType == false ? IntPtr.Size : 0;
+            int valueSize = ReportValue(v, fieldElement, ReferenceQueueing.QueueReferenceTypes);
+            int res = fieldSize + valueSize;
             
             fieldElement.SetAttribute("totalsize", res.ToString());
 
