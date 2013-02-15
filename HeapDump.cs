@@ -393,8 +393,6 @@ namespace UnityHeapEx
             if (valueElement != null)
             {
                 parent.AppendChild(valueElement);
-
-                seenObjects[obj] = new CachedObject(ftype, valueElement, res);
             }
 
             return res;
@@ -402,6 +400,11 @@ namespace UnityHeapEx
 
         private int ReportString(string s, XmlElement parent)
         {
+            if (seenObjects.ContainsKey(s))
+            {
+                throw new UnityException("Already processed string " + s);
+            }
+
             var stringElement = doc.CreateElement("string");
             stringElement.SetAttribute("length", s.Length.ToString());
 
@@ -409,6 +412,8 @@ namespace UnityHeapEx
 
             stringElement.SetAttribute("size", size.ToString());
             parent.AppendChild(stringElement);
+
+            seenObjects[s] = new CachedObject(s.GetType(), stringElement, size);
             return size;
         }
 
