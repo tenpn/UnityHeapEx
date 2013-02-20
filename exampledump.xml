@@ -1,0 +1,113 @@
+<?xml version="1.0"?>
+<dump totalsize="9900">
+  <rootobjects totalsize="5976">
+    <gameobject name="ssh_temple_corkscrewl_01" totalsize="5928">
+      <childobjects totalsize="5692">
+        <gameobject name="Splines" totalsize="5532">
+          <childobjects totalsize="5532">
+            <gameobject name="Lane 2" totalsize="1844">
+              <childobjects totalsize="1768">
+                <gameobject name="Knot 24" totalsize="68">
+                  <instance type="SplineKnot" totalsize="68">
+                    <field type="Vector3" name="&amp;lt;Tangent&amp;gt;k__BackingField" totalsize="12" />
+                    <field type="Vector3" name="&amp;lt;TowardsNextKnot&amp;gt;k__BackingField" totalsize="12" />
+                    <field type="Vector3" name="m_lastCleanPosition" totalsize="12" />
+                    <field type="ReferenceData" name="m_UnityRuntimeReferenceData" totalsize="8" />
+                    <field type="Boolean" name="&amp;lt;IsDirty&amp;gt;k__BackingField" totalsize="4" />
+                    <field type="Single" name="&amp;lt;WorldDistanceToNextKnot&amp;gt;k__BackingField" totalsize="4" />
+                    <field type="Single" name="&amp;lt;Length&amp;gt;k__BackingField" totalsize="4" />
+                    <field type="Boolean" name="m_isDirty" totalsize="4" />
+                    <field type="SplineKnot.EndBehaviour" name="m_behaviourIfEnd" totalsize="4" />
+                    <field type="String" name="m_UnityRuntimeErrorString" totalsize="4">
+                      <null />
+                    </field>
+                  </instance>
+                  <childobjects totalsize="0" />
+                </gameobject>
+                <!-- ... -->
+              </childobjects>
+              <instance type="Spline" totalsize="76">
+                <field type="Color" name="m_knotColour" totalsize="16" />
+                <field type="Color" name="m_splineColour" totalsize="16" />
+                <field type="ReferenceData" name="m_UnityRuntimeReferenceData" totalsize="8" />
+                <field type="Spline.OnEvent" name="OnTrackEnd" totalsize="4">
+                  <reference />
+                </field>
+                <field type="Spline.OnEvent" name="OnTrackStart" totalsize="4">
+                  <reference />
+                </field>
+                <field type="Int32" name="m_cachedKnotCount" totalsize="4" />
+                <field type="Single" name="m_length" totalsize="4" />
+                <field type="List`1(SplineKnot)" name="m_knots" totalsize="4">
+                  <reference />
+                </field>
+                <field type="Single" name="m_splineAccuracy" totalsize="4" />
+                <field type="Int32" name="m_renderSegments" totalsize="4" />
+                <field type="Spline.Type" name="m_splineType" totalsize="4" />
+                <field type="String" name="m_UnityRuntimeErrorString" totalsize="4">
+                  <null />
+                </field>
+              </instance>
+            </gameobject>
+            <!-- ... -->
+          </childobjects>
+        </gameobject>
+        <!-- ... -->
+      </childobjects>
+      <instance type="SplineTrackTester" totalsize="112">
+        <field type="TrackSegment" name="m_segment" totalsize="92">
+          <seenobject size="88" type="TrackSegment" />
+        </field>
+        <field type="ReferenceData" name="m_UnityRuntimeReferenceData" totalsize="8" />
+        <field type="Track.Lane" name="m_testLane" totalsize="4" />
+        <field type="Single" name="m_testDistance" totalsize="4" />
+        <field type="String" name="m_UnityRuntimeErrorString" totalsize="4">
+          <null />
+        </field>
+      </instance>
+      <!-- ... -->
+    </gameobject>
+    <!-- ... -->
+  </rootobjects>
+  <statics totalsize="3924">
+    <statictype name="CRC32" totalsize="1040">
+      <field type="UInt32[]" name="s_table" totalsize="1028">
+        <array length="256" size="1024" />
+      </field>
+      <field type="UInt32" name="TableSize" totalsize="4" />
+      <field type="UInt32" name="CRCSeed" totalsize="4" />
+      <field type="UInt32" name="Polynomial" totalsize="4" />
+    </statictype>
+    <!-- ... -->
+    <statictype name="EquipItems" totalsize="0" />
+  </statics>
+  <instances totalsize="0">
+    <instance type="Dictionary`2(iTweenEvent.TweenType, Dictionary`2(String, Type))" totalsize="2224">
+      <field type="Link[]" name="linkSlots" totalsize="876">
+        <array length="109" size="872" />
+      </field>
+      <field type="Dictionary`2[]" name="valueSlots" totalsize="440">
+        <array length="109" size="436" />
+      </field>
+      <field type="TweenType[]" name="keySlots" totalsize="440">
+        <array length="109" size="436" />
+      </field>
+      <field type="Int32[]" name="table" totalsize="440">
+        <array length="109" size="436" />
+      </field>
+      <field type="Int32" name="generation" totalsize="4" />
+      <field type="SerializationInfo" name="serialization_info" totalsize="4">
+        <null />
+      </field>
+      <field type="IEqualityComparer`1(iTweenEvent.TweenType)" name="hcp" totalsize="4">
+        <reference />
+      </field>
+      <field type="Int32" name="threshold" totalsize="4" />
+      <field type="Int32" name="count" totalsize="4" />
+      <field type="Int32" name="emptySlot" totalsize="4" />
+      <field type="Int32" name="touchedSlots" totalsize="4" />
+    </instance>
+    <!-- ... -->
+    <instance type="EqualityComparer`1(iTweenEvent.TweenType).DefaultComparer(iTweenEvent.TweenType)" totalsize="0" />
+  </instances>
+</dump>
