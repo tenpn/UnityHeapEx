@@ -1,15 +1,15 @@
 <?xml version="1.0"?>
-<dump totalsize="9900">
-  <rootobjects totalsize="5976">
-    <gameobject name="ssh_temple_corkscrewl_01" totalsize="5928">
-      <childobjects totalsize="5692">
+<dump totalsize="9900"> <!-- almost every element has a size attribute for it and everything below it -->
+  <rootobjects totalsize="5976"> <!-- a dump of the object hierarchy -->
+    <gameobject name="ssh_temple_corkscrewl_01" totalsize="5928"> 
+      <childobjects totalsize="5692"> <!-- each gameobject is responsible for dumping its children -->
         <gameobject name="Splines" totalsize="5532">
           <childobjects totalsize="5532">
-            <gameobject name="Lane 2" totalsize="1844">
+            <gameobject name="Lane 2" totalsize="1844"> <!-- at every level, children are sorted by size, so you can easily find the biggest problems -->
               <childobjects totalsize="1768">
                 <gameobject name="Knot 24" totalsize="68">
                   <instance type="SplineKnot" totalsize="68">
-                    <field type="Vector3" name="&amp;lt;Tangent&amp;gt;k__BackingField" totalsize="12" />
+                    <field type="Vector3" name="&amp;lt;Tangent&amp;gt;k__BackingField" totalsize="12" /> <!-- fields don't report contents -->
                     <field type="Vector3" name="&amp;lt;TowardsNextKnot&amp;gt;k__BackingField" totalsize="12" />
                     <field type="Vector3" name="m_lastCleanPosition" totalsize="12" />
                     <field type="ReferenceData" name="m_UnityRuntimeReferenceData" totalsize="8" />
@@ -38,8 +38,8 @@
                 </field>
                 <field type="Int32" name="m_cachedKnotCount" totalsize="4" />
                 <field type="Single" name="m_length" totalsize="4" />
-                <field type="List`1(SplineKnot)" name="m_knots" totalsize="4">
-                  <reference />
+                <field type="List`1(SplineKnot)" name="m_knots" totalsize="4"> 
+                  <reference /> <!-- references to class instances don't count towards parent size. they are listed seperately below -->
                 </field>
                 <field type="Single" name="m_splineAccuracy" totalsize="4" />
                 <field type="Int32" name="m_renderSegments" totalsize="4" />
@@ -69,7 +69,7 @@
     </gameobject>
     <!-- ... -->
   </rootobjects>
-  <statics totalsize="3924">
+  <statics totalsize="3924"> <!-- statics is a dump of all static members by class -->
     <statictype name="CRC32" totalsize="1040">
       <field type="UInt32[]" name="s_table" totalsize="1028">
         <array length="256" size="1024" />
@@ -81,7 +81,7 @@
     <!-- ... -->
     <statictype name="EquipItems" totalsize="0" />
   </statics>
-  <instances totalsize="0">
+  <instances totalsize="44424"> <!-- everything that's not a game object or static, ie most object instances, sorted by size -->
     <instance type="Dictionary`2(iTweenEvent.TweenType, Dictionary`2(String, Type))" totalsize="2224">
       <field type="Link[]" name="linkSlots" totalsize="876">
         <array length="109" size="872" />
